@@ -1,0 +1,22 @@
+# Server configurations
+server:
+    port: :8081
+    basepath: /usermanagement
+
+# Application specific configurations
+application:
+    name: UserManagement
+    client_id: accuknox-ui
+    id: 98afdbf1-45d5-4165-8e39-dda0efd572db
+    client_secret: 25535f45-cc25-40c8-93fd-7f6685d80597
+    grant_type: password
+    scope: openid
+
+database:
+    dbname: user_management
+    host: localhost
+    port: 3306
+    user: manu
+    password: 143114
+
+    
