@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/manureddy7143/GolangStarter/utils/database"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
@@ -22,14 +21,13 @@ func main() {
 	configPath = flag.String("config-path", "conf", "conf")
 	flag.Parse()
 	loadconfig()
-	setUpdb()
 	r := gin.New()
 	setupRoutes(r)
 	startServer(r)
 
 }
 
-//Load configuration file
+// Load configuration file
 func loadconfig() {
 	viper.AddConfigPath(*configPath)
 	viper.SetConfigName("app")
@@ -41,11 +39,6 @@ func loadconfig() {
 			log.Panic().Msgf("Error reading config file: %s\n", readErr)
 		}
 	}
-}
-
-//connect to mysql database
-func setUpdb() {
-	database.GetInstance()
 }
 
 // startServer - Start server

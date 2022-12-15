@@ -1,187 +1,131 @@
 package controller
 
 import (
-	"strings"
+	"encoding/json"
+	"fmt"
+	"math"
+	"strconv"
 	"time"
 
 	"net/http"
 
-	"github.com/dgrijalva/jwt-go"
-	models "github.com/manureddy7143/GolangStarter/source/model"
-	"github.com/manureddy7143/GolangStarter/source/repository"
-	dto "github.com/manureddy7143/GolangStarter/source/service"
-	"github.com/rs/zerolog/log"
+	"github.com/go-chassis/openlog"
+	dto "github.com/manureddy7143/insta-task/source/dto"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 )
 
-//UserManagement controller
-type UserManagement struct{}
+type Transaction struct{}
+
+var TransactionsSorage []map[string]interface{}
+
+type AddTransactionInput struct {
+	Data map[string]interface{}
+}
 
 // LoginPath - URL Path for Login
-const LoginPath = "/login"
-
-// RegisterPath - URL Path for Register
-const RegisterPath = "/register"
-
-// ProfilePath - URL Path for GetProfile
-const ProfilePath = "/profile"
+const Transactions = "/transactions"
+const GetStat = "/statstics"
+const Delete = "/delete"
 
 const secretKey = "secret"
 
-var authRepository repository.AuthRepository = repository.AuthRepository{}
+// PostTransactions will Store valid Tranasactins
+func (a Transaction) PostTransactions(c *gin.Context) {
+	openlog.Info("Got a request to add Transaction")
 
-// Register function
-// @Summary Register In API
-// @Description Register  API for Usres and to get Access Token
-// @Request Body containing username, password, email, firstname, lastname"
-// @Produce json
-// @Router /auth/users/register [post]
-func (userManagement UserManagement) Register(c *gin.Context) {
-	//Defining User
-	var person dto.RequestRegister
-	err := c.ShouldBindJSON(&person)
-	if err != nil {
-		log.Panic().Msgf("Binding error")
-		errorHandling(c, "err-5001", err)
-	}
-	//Generate Password using bcrypt
-	password, _ := bcrypt.GenerateFromPassword([]byte(person.Password), 14)
-	if person.Username == "" || person.Firstname == "" || person.Lastname == "" || person.Email == "" {
-		log.Panic().Msgf("Bad Request")
-		errorHandling(c, "err-4000", err)
-		return
-	}
-	// Verifying the username and email
-	aa, err := authRepository.FindUsers(map[string]interface{}{"username": person.Username, "email": person.Email})
-	if err != nil {
-		log.Panic().Msgf("Database Error")
-		errorHandling(c, "err-5000", err)
-		return
-	}
-	if len(aa) > 0 {
-		log.Panic().Msgf("User Already Exists")
-		errorHandling(c, "err-4001", err)
-		return
-	}
-	//Defining user to create db entry
-	user := models.Users{
-		Username:  person.Username,
-		Firstname: person.Firstname,
-		Lastname:  person.Lastname,
-		Email:     person.Email,
-		Password:  password,
-	}
-	//Calling Db method to create User
-	UserId, err := authRepository.CreateUsers(user)
-	if err != nil {
-		log.Panic().Msgf("Database Error")
-		errorHandling(c, "err-5000", err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Registed", "UserId": UserId,
-	})
+	data := make(map[string]interface{})
+	json.NewDecoder(c.Request.Body).Decode(&data)
+	input := AddTransactionInput{Data: data}
+	res := AddTransaction(input)
+	c.JSON(http.StatusAccepted, res)
 }
 
-// Login function
-// @Summary Sign In API
-// @Description Sign In API for authentication and to get Access token
-// @ Login body dto.RequestLogin true "Request body containing user credentials"
-// @Produce json
-// @Success 200 {object} dto.RespLogin "Access,Refresh Tokens"
-// @Failure 401 {object} dto.ErrorDTO "Invalid Credentials"
-// @Failure 500 {object} dto.ErrorDTO "Internal Server Error"
-// @Router /auth/users/login [post]
-func (a UserManagement) Login(c *gin.Context) {
-	//Defining User
-	var person dto.RequestLogin
-	err := c.ShouldBind(&person)
-	if err != nil {
-		log.Panic().Msgf("Binding error")
-		errorHandling(c, "err-5001", err)
-	}
-	// Verifying the username and email
-	if person.Email == "" || person.Password == "" {
-		log.Panic().Msgf("Bad Request")
-		errorHandling(c, "err-4000", err)
-		return
-	}
-	//Calling db method to find Users
-	Users, err := authRepository.FindUsers(map[string]interface{}{"email": person.Email})
-	if err != nil {
-		log.Panic().Msgf("Database Error")
-		errorHandling(c, "err-4001", err)
-		return
-	}
-	if len(Users) == 0 {
-		log.Panic().Msgf("User Dont Exists")
-		errorHandling(c, "err-4002", err)
-		return
-	}
-	//Comparing Passwords
-	if err := bcrypt.CompareHashAndPassword(Users[0].Password, []byte(person.Password)); err != nil {
-		c.Status(http.StatusNotFound)
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Incorrect Password"})
-		return
-	}
-	//Adding issuer claims with email
-	clamins := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{
-		Issuer:    person.Email,
-		ExpiresAt: time.Now().Add(time.Hour * 24).Unix(),
-	})
-	//Generating Token
-	token, err := clamins.SignedString([]byte(secretKey))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "could not login",
-		})
-		return
-	}
-	c.JSON(http.StatusAccepted, gin.H{
-		"message": "Logged In successfully", "accessToken": token,
-	})
+// FetchAllTransactions will list Trasactions Statistics
+func (a Transaction) GetStatstics(c *gin.Context) {
+	res := GetAllStastics()
+	c.JSON(http.StatusAccepted, res)
 }
 
-// Profile  function
-// @Summary Profile  In API
-// @Description Sign In API for authentication and to get Access, Refresh token
-// @Request Body containers access token
-// @Produce json
-// @Success 200 {object} dto.ResponseLogin "Access,Refresh Tokens"
-// @Failure 401 {object} dto.ErrorDTO "Invalid Credentials"
-// @Failure 500 {object} dto.ErrorDTO "Internal Server Error"
-// @Router /auth/users/profile[post]
-func (a UserManagement) Profile(c *gin.Context) {
-	// Retriving The Token
-	reqToken := c.Request.Header.Get("Authorization")
-	splitToken := strings.Split(reqToken, "Bearer ")
-	accessToken := splitToken[1]
-	ac := &jwt.StandardClaims{}
-	//Parsing claims
-	token, err := jwt.ParseWithClaims(accessToken, ac, func(t *jwt.Token) (interface{}, error) {
-		return []byte(secretKey), nil
-	})
+// DeleteAllTransactions delete all transactions
+func (a Transaction) DeleteAllTransactions(c *gin.Context) {
+	openlog.Info("Got a request to Delete All Transactions")
+	res := DeleteAllTransactions()
+	c.JSON(http.StatusAccepted, res)
+}
+
+func AddTransaction(input AddTransactionInput) dto.Response {
+	timestamp := input.Data["timestamp"].(string)
+	transactiontime, err := time.Parse("2006-01-02T15:04:05.999Z", timestamp)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"message": "Go To Login Page",
-		})
-		return
+		fmt.Println(err)
+		return dto.Response{Msg: "Internal Server Error", Data: nil, Status: 500}
 	}
-	claims := token.Claims.(*jwt.StandardClaims)
-	// Finding Users
-	Users, err := authRepository.FindUsers(map[string]interface{}{"email": claims.Issuer})
+	timeNow := time.Now()
+	diff := timeNow.Sub(transactiontime)
+
+	if diff > time.Duration(time.Second*60) {
+		fmt.Println("duration :", diff)
+		return dto.Response{Msg: "Timestamp shoud be with 60 seconds", Data: input.Data, Status: 204}
+	} else if diff < 0 {
+		return dto.Response{Msg: "Timestamp shoud not be in future", Data: input.Data, Status: 422}
+	}
+
+	TransactionsSorage = append(TransactionsSorage, input.Data)
+	return dto.Response{Msg: "Transaction added successfully", Data: input.Data, Status: 201}
+}
+
+func GetAllStastics() dto.Response {
+
+	stats, err := GetStatstics(time.Now())
 	if err != nil {
-		log.Panic().Msgf("Database Error")
-		errorHandling(c, "err-4001", err)
-		return
+		fmt.Println(err)
+		return dto.Response{Msg: "Internal Server Error", Data: nil, Status: 500}
 	}
-	ResponseUserProfile := dto.RespProfile{
-		Username:  Users[0].Firstname,
-		Email:     Users[0].Email,
-		Firstname: Users[0].Firstname,
-		Lastname:  Users[0].Lastname,
+	return dto.Response{Msg: "All Transaction Fetched successfully", Data: stats, Status: 200}
+}
+
+func DeleteAllTransactions() dto.Response {
+	TransactionsSorage = nil
+	return dto.Response{Msg: "All Transactions deleted successfully", Data: nil, Status: 204}
+}
+func GetStatstics(timenow time.Time) (map[string]interface{}, error) {
+	var max, min, average, count, sum float64
+
+	if len(TransactionsSorage) > 0 {
+		min = math.MaxFloat64
 	}
-	c.JSON(http.StatusAccepted, ResponseUserProfile)
+	for _, transaction := range TransactionsSorage {
+		timestamp := transaction["timestamp"].(string)
+		transactiontime, err := time.Parse("2006-01-02T15:04:05.999Z", timestamp)
+		if err != nil {
+			fmt.Println(err)
+			return nil, err
+		}
+		diff := timenow.Sub(transactiontime)
+		if diff < time.Duration(time.Second*60) {
+			amount := transaction["amount"].(string)
+			cost, err := strconv.ParseFloat(amount, 64)
+			if err != nil {
+				fmt.Println(err)
+				return nil, err
+			}
+			sum += cost
+			count++
+			average = sum / count
+			if cost > max {
+				max = cost
+			}
+			if cost < min {
+				min = cost
+			}
+		}
+	}
+	return map[string]interface{}{
+		"sum":     sum,
+		"average": average,
+		"count":   count,
+		"min":     min,
+		"max":     max,
+	}, nil
 }
