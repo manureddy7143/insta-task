@@ -16,4 +16,6 @@ func setupRoutes(r *gin.Engine) {
 	r.POST(controller.Transactions, transactionController.PostTransactions)
 	r.GET(controller.GetStat, transactionController.GetStatstics)
 	r.DELETE(controller.Transactions, transactionController.DeleteAllTransactions)
+	r.POST(controller.Location, transactionController.SetLocation)
+	r.DELETE(controller.Location, transactionController.ResetLocation)
 }

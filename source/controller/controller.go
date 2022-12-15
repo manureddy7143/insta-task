@@ -19,6 +19,10 @@ type Transaction struct{}
 
 var TransactionsSorage []map[string]interface{}
 
+var location struct {
+	Loc string `json:"location"`
+}
+
 type AddTransactionInput struct {
 	Data map[string]interface{}
 }
@@ -27,8 +31,7 @@ type AddTransactionInput struct {
 const Transactions = "/transactions"
 const GetStat = "/statstics"
 const Delete = "/delete"
-
-const secretKey = "secret"
+const Location = "/location"
 
 // PostTransactions will Store valid Tranasactins
 func (a Transaction) PostTransactions(c *gin.Context) {
@@ -43,8 +46,24 @@ func (a Transaction) PostTransactions(c *gin.Context) {
 
 // FetchAllTransactions will list Trasactions Statistics
 func (a Transaction) GetStatstics(c *gin.Context) {
+	if location.Loc != "" {
+		loc, _ := c.GetQuery("location")
+		if !(location.Loc == loc) {
+			c.JSON(http.StatusUnauthorized, "unauthorized")
+			return
+		}
+	}
 	res := GetAllStastics()
 	c.JSON(http.StatusAccepted, res)
+}
+
+func (a Transaction) SetLocation(c *gin.Context) {
+	json.NewDecoder(c.Request.Body).Decode(&location)
+	c.JSON(http.StatusAccepted, "Location set success")
+}
+func (a Transaction) ResetLocation(c *gin.Context) {
+	location.Loc = ""
+	c.JSON(http.StatusAccepted, "Location reset success")
 }
 
 // DeleteAllTransactions delete all transactions
